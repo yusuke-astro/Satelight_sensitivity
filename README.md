@@ -1,0 +1,3 @@
+# LiteBIRD_sensitivity
+sensitivity01.pyは最終的なP_optや各opticsのP_iの値を標準出力し，グラフに描画する．
+sensitivity02.pyはsensitivity01.pyで標準出力される値を全てCSV出力する．
