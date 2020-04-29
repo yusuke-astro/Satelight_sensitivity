@@ -1,6 +1,5 @@
 """
-このプログラムはsensitivity01.pyで標準出力させていた計算結果をcsv出力できるようにしたものである．
-D=16で計算したい場合は0を，D=24で計算したいときは1を標準入力する．
+このプログラムはsensitivity02.pyでP_optを求めた計算から引き続きNEPなどを求めるようにしたコードである．
 """
 
 import  numpy as np
@@ -11,7 +10,7 @@ import pandas as pd
 
 GHz = 1e9
 p = 1e-12
-Tera = 1e12
+Tera=1e12
 W = 0.08883*p
 u = 1e-6
 m = 1e-3
@@ -19,11 +18,11 @@ e_0 = 8.85418782*10**(-12)
 h = 6.62607004*10**(-34)
 k_B = 1.38064852*10**(-23)
 c = 299792458
-############################################
+
 print("Define Pixel_pitch(D)...")
 print("If you use D=16 -->> input 0, D=24 -->> input 1")
-switch = int(input(">>>"))
-#freqに対してDが2つあるところがある
+switch = 1 #= int(input(">>>"))
+
 def define_D(f):
     #周波数に対してDが2つ存在するところで，使用するDの値を24にするか16にするかを決める仮想パラメータ
     #switch=1なら78,68,89GHzにおいてD=24.0でswitch=0ならD=16.0が選択される
@@ -125,52 +124,70 @@ def P_Det(f):
 def P_Opt(f):
     return P_CMB(f)+P_HWP(f)+P_Ape(f)+P_m1(f)+P_m2(f)+P_20K(f)+P_2KF(f)+P_Lens(f)+P_Det(f)
 
-#freq_note = np.array([40,60,78,50,68,89,119,100,140])
-#hasebe = np.array([0.36,0.29,0.28,0.38,0.28,0.28,0.36,0.34,0.40,0.36,0.33,0.38])
+def in_nep_ph(f):
+    return 2.0*h*f*P_Opt(f) + 2.0*(P_Opt(f))**2
+
+def nep_ph(f):
+    global F
+    global BW
+    #print("F=",F,BW)
+    return np.sqrt((integrate.quad(in_nep_ph, F-BW, F+BW)[0]))
+
+def nep_g(P_opt):
+    global F
+    global BW
+    T_b = 0.100
+    T_c = 0.171
+    n = 3.0
+    ratio = T_c/T_b
+    A = (n+1.)**2/((2.*n)+3.)
+    B = ((ratio**(2.*n+3.))-1.)/(((ratio**(n+1.))-1.)**2.)
+    value = np.sqrt(4.0*k_B*2.5*P_opt*T_b*A*B)
+    return value
+
+def nep_read(a,b):
+    value = np.sqrt(0.21)*np.sqrt(a**2+b**2)
+    return value
+
+def nep_int(a,b,c):
+    return np.sqrt(a**2+b**2+c**2)
+
 if switch == 1:
     hasebe = np.array([0.36,0.29,0.28,0.38,0.28,0.28,0.40,0.33,0.38])
 if switch == 0:
     hasebe = np.array([0.36,0.29,0.36,0.38,0.36,0.34,0.40,0.33,0.38])
 
-
-
 freq = np.array([40,60,78,50,68,89,119,100,140])*GHz
 
 print("CSV-file generated...")
-INTEGRATE = []
-with open('sensitivity.csv', 'w') as FILE:
-    print("Freq[GHz],Band_width[GHz],D(Pixel_Pich),P_CMB,P_HWP,P_APT,P_20K,P_m1,P_m2,P_2KF,P_Lens,P_Det,P_opt,INTEG_P_CMB,INTEG_P_opt",file=FILE)
+INTEGRATE = []#積分されたP_Optが入る
+NEP_ph = []
+NEP_g = []
+NEP_read = []
+NEP_int = []
+with open('sensitivity03.csv', 'w') as FILE:
+    print("Freq[GHz],Band_width[GHz],D(Pixel_Pich),P_CMB,P_HWP,P_APT,P_20K,P_m1,P_m2,P_2KF,P_Lens,P_Det,P_opt,\
+    INTEG_P_CMB,INTEG_P_opt,NEP_ph,NEP_g,NEP_read,NEP_int",file=FILE)
     for i in range(len(freq)):
         F = freq[i]
         D = define_D(F)
         WL = c/freq[i]
         BW = st.width(F)
         INTEGRATE.append(integrate.quad(P_Opt, F-BW, F+BW)[0])
-        print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(F/GHz,BW/GHz,D,P_CMB(freq[i]),P_HWP(freq[i]),P_Ape(freq[i]),\
+        NEP_ph.append(nep_ph(freq[i]))
+        NEP_g.append(nep_g(INTEGRATE[i]))
+        NEP_read.append(nep_read(NEP_ph[i],NEP_g[i]))
+        NEP_int.append(nep_int(NEP_ph[i],NEP_g[i],NEP_read[i]))
+
+
+        print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(F/GHz,BW/GHz,D,P_CMB(freq[i]),P_HWP(freq[i]),P_Ape(freq[i]),\
         P_20K(freq[i]),P_m1(freq[i]),P_m2(freq[i]),P_2KF(freq[i]),P_Lens(freq[i]),P_Det(freq[i]),P_Opt(freq[i]),\
-        integrate.quad(P_CMB, F-BW, F+BW)[0],INTEGRATE[i] ),file=FILE)
+        integrate.quad(P_CMB, F-BW, F+BW)[0],INTEGRATE[i],NEP_ph[i],NEP_g[i],NEP_read[i],NEP_int[i]),file=FILE)
 INTEGEATE = np.array(INTEGRATE)
+NEP_ph = np.array(NEP_ph)
+NEP_g = np.array(NEP_g)
+NEP_ph
 
-df = pd.read_csv("sensitivity.csv")
-df
-#hasebe_D1 = np.array([0.36,0.29,0.28,0.38,0.28,])
-delta = hasebe*p - INTEGEATE
-delta
-plt.figure()
-plt.title("Integrated P_opt")
-plt.xlabel("Freqency[GHz]")
-plt.ylabel("INTEG_P_opt[pW]")
-plt.plot(freq/GHz,hasebe,"o",label="Hasebe-san")
-plt.plot(freq/GHz,INTEGEATE/p,"o",label="Takase")
-plt.grid()
-plt.legend()
 
-plt.figure()
-plt.title("Hasebe_san - Takase")
-plt.xlabel("Freqency[GHz]")
-plt.ylabel("Delta")
-plt.plot(freq/GHz, delta,"o", label="Hase-Taka")
-plt.grid()
-plt.legend()
-
-plt.show()
+df = pd.read_csv("sensitivity03.csv")
+print(df)
