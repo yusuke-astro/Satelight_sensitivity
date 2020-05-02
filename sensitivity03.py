@@ -10,6 +10,7 @@ import pandas as pd
 
 GHz = 1e9
 p = 1e-12
+a =1e-18
 Tera=1e12
 W = 0.08883*p
 u = 1e-6
@@ -56,15 +57,46 @@ def define_D(f):
         D = 16.0
     return D
 
+def define_Num_dat(f):
+    global switch
+    if f == 40*GHz:
+        Num_det = 64.
+    if f == 60*GHz:
+        Num_det = 64.
+    if f == 78*GHz:
+        if switch == 1:
+            Num_det = 64.
+        if switch == 0:
+            Num_det = 144.
+    if f == 50*GHz:
+        Num_det = 64.
+    if f == 68*GHz:
+        if switch == 1:
+            Num_det = 64.
+        if switch == 0:
+            Num_det = 144.
+    if f == 89*GHz:
+        if switch == 1:
+            Num_det = 64.
+        if switch == 0:
+            Num_det = 144.
+    if f == 100*GHz:
+        Num_det = 144.
+    if f == 119*GHz:
+        Num_det = 144.
+    if f == 140*GHz:
+        Num_det = 144.
+    return Num_det
+
 def P_CMB(f):
     global F
-    D = define_D(F)
+    #D = define_D(F)
     T = 2.725
     return st.ita_HWP_LFT(F)*st.ita_Apt_LFT(f,D)*st.ita_Mir(f)*st.ita_Mir(f)*st.ita_2K(f)*st.ita_Lenslet(f)*st.ita_det_LFT()*st.Bose(f,T) * 1.000
 
 def P_HWP(f):
     global F
-    D = define_D(F)
+    #D = define_D(F)
     T = 20.00
     T_r = 5.000
     HWP_e = st.ita_Apt_LFT(f,D)*st.ita_Mir(f)*st.ita_Mir(f)*st.ita_2K(f)*st.ita_Lenslet(f)*st.ita_det_LFT()*st.Bose(f,T) * st.epsi_HWP_LFT(F)
@@ -73,7 +105,7 @@ def P_HWP(f):
 
 def P_Ape(f):
     global F
-    D = define_D(F)
+    #D = define_D(F)
     T = 5.000
     return st.ita_5K(f,D)*st.ita_Mir(f)*st.ita_Mir(f)*st.ita_2K(f)*st.ita_Lenslet(f)*st.ita_det_LFT()*st.Bose(f,T)
 
@@ -95,7 +127,7 @@ def P_m2(f):
 
 def P_20K(f):
     global F
-    D = define_D(F)
+    #D = define_D(F)
     T = 20.0
     return st.ita_20K(F,D)*st.ita_2K(f)*st.ita_Lenslet(f)*st.ita_det_LFT()*st.Bose(f,T) * 1.000
 
@@ -152,12 +184,14 @@ def nep_read(a,b):
 def nep_int(a,b,c):
     return np.sqrt(a**2+b**2+c**2)
 
-if switch == 1:
-    hasebe = np.array([0.36,0.29,0.28,0.38,0.28,0.28,0.40,0.33,0.38])
-if switch == 0:
-    hasebe = np.array([0.36,0.29,0.36,0.38,0.36,0.34,0.40,0.33,0.38])
 
-freq = np.array([40,60,78,50,68,89,119,100,140])*GHz
+def dPdT_CMB(f):
+    T_cmb = 2.725
+    kT = k_B*T_cmb
+
+    return (1.0/k_B) * (( (h*f) / (T_cmb*(np.exp((h*f)/kT)-1.0)))**2) * np.exp((h*f)/kT)
+
+freq = np.array([40,60,78,50,68,89,68,89,119,78,100,140])*GHz
 
 print("CSV-file generated...")
 INTEGRATE = []#積分されたP_Optが入る
@@ -165,12 +199,25 @@ NEP_ph = []
 NEP_g = []
 NEP_read = []
 NEP_int = []
+NEP_ext = []
+NEP_det = []
+dPdT = []
+NET_det = []
+NET_arr = []
+sigma_s = []
+t_obs = 94672800.*0.72
 with open('sensitivity03.csv', 'w') as FILE:
     print("Freq[GHz],Band_width[GHz],D(Pixel_Pich),P_CMB,P_HWP,P_APT,P_20K,P_m1,P_m2,P_2KF,P_Lens,P_Det,P_opt,\
-    INTEG_P_CMB,INTEG_P_opt,NEP_ph,NEP_g,NEP_read,NEP_int",file=FILE)
+    INTEG_P_CMB,INTEG_P_opt,NEP_ph,NEP_g,NEP_read,NEP_int,NEP_ext,NEP_det,dPdT_CMB,NET_det,NET_arr,sigma_s",file=FILE)
     for i in range(len(freq)):
         F = freq[i]
-        D = define_D(F)
+        #D = define_D(F)
+        if i<=5:
+            D=24.0
+        else:
+            D=16.0
+
+
         WL = c/freq[i]
         BW = st.width(F)
         INTEGRATE.append(integrate.quad(P_Opt, F-BW, F+BW)[0])
@@ -178,15 +225,22 @@ with open('sensitivity03.csv', 'w') as FILE:
         NEP_g.append(nep_g(INTEGRATE[i]))
         NEP_read.append(nep_read(NEP_ph[i],NEP_g[i]))
         NEP_int.append(nep_int(NEP_ph[i],NEP_g[i],NEP_read[i]))
+        NEP_ext.append(np.sqrt(0.32*NEP_int[i]**2))
+        NEP_det.append(np.sqrt(NEP_int[i]**2 + NEP_ext[i]**2))
+        dPdT.append(integrate.quad(dPdT_CMB, F-BW, F+BW)[0])
+        NET_det.append(NEP_det[i]/(np.sqrt(2.)*dPdT[i]))
+        NET_arr.append(NET_det[i]/np.sqrt(define_Num_dat(freq[i])*0.8))
+        sigma_s.append(np.sqrt((4.*np.pi*1.0*2.*NET_arr[i]**2)/t_obs)*(10800./np.pi))
 
-
-        print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(F/GHz,BW/GHz,D,P_CMB(freq[i]),P_HWP(freq[i]),P_Ape(freq[i]),\
+        print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(F/GHz,BW/GHz,D,P_CMB(freq[i]),P_HWP(freq[i]),P_Ape(freq[i]),\
         P_20K(freq[i]),P_m1(freq[i]),P_m2(freq[i]),P_2KF(freq[i]),P_Lens(freq[i]),P_Det(freq[i]),P_Opt(freq[i]),\
-        integrate.quad(P_CMB, F-BW, F+BW)[0],INTEGRATE[i],NEP_ph[i],NEP_g[i],NEP_read[i],NEP_int[i]),file=FILE)
+        integrate.quad(P_CMB, F-BW, F+BW)[0],INTEGRATE[i],NEP_ph[i]/a,NEP_g[i]/a,NEP_read[i]/a,NEP_int[i]/a,NEP_ext[i]/a,\
+        NEP_det[i]/a,dPdT[i],NET_det[i]/u,NET_arr[i]/u,sigma_s[i]/u) ,file=FILE)
 INTEGEATE = np.array(INTEGRATE)
 NEP_ph = np.array(NEP_ph)
 NEP_g = np.array(NEP_g)
-NEP_ph
+NET_arr
+sigma_s
 
 
 df = pd.read_csv("sensitivity03.csv")
